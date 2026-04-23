@@ -1,0 +1,10 @@
+[project]
+dependencies = [
+	'agentscope-runtime',
+]
+description = '一个使用 AgentScope 构建的智能体示例，封装了科技云知识库调用。'
+license = 'Apache-2.0'
+license-files = ['LICENSE']
+name = '智能体示例'
+readme = 'README.md'
+version = '0.1.0'

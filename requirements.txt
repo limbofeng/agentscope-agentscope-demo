@@ -1,0 +1,4 @@
+agentscope-runtime
+openpyxl
+pdfplumber
+python-docx
