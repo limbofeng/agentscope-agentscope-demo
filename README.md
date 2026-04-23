@@ -9,6 +9,7 @@
 ```bash
 python -m venv .venv
 .venv/Scripts/activate
+source .venv/bin/activate
 ```
 
 然后安装本项目唯一依赖：
