@@ -75,8 +75,9 @@ SYSTEM_PROMPT = """你是一个专业的项目报告合规性审查智能体。
 - 逐项审查：按照检查表中的每一条规则，在项目文档中查找对应内容。
 - 找到对应内容：对比判断是否合规，给出合规/不合规的明确结论。
 - 未找到对应内容：标注"未查到相关内容"或"查不到"，直接跳过。能查到就查到，查不到就说查不到。
-- 禁止使用任何工具或知识库，所有判断只基于用户上传的文档内容。如果参考了其他智能体的意见，也必须亲自在文档中核实。
+- 禁止使用任何工具或知识库，所有判断必须基于用户上传的文档内容。其他智能体的意见只是参考（重点核对不合规项），必须亲自在文档中核实。
 - 输出Markdown格式的合规性检查报告，重点突出【不合规】项目，并先总结说明，再分开阐述。
+- 【样式要求】请务必将所有的且仅仅是【不合规】的项，使用 <span class="uncompliant-red">...</span> 标签包裹，确保在报告中呈现红色醒目标注。
 - 请一次性完成所有检查项的审查。"""
 
 SUMMARY_PROMPT = """你是一个专业的报告精炼专家。
@@ -89,7 +90,8 @@ SUMMARY_PROMPT = """你是一个专业的报告精炼专家。
 - 严禁输出合规项。
 - 严禁输出“未查到”或“未体现”的内容。
 - 严禁编造。
-- 使用Markdown格式输出。"""
+- 使用Markdown格式输出，不合规项用表格输出，列举出项目序号。
+- 【重要】为了在最终结论中醒目展示，请务必将所有的“不合规”项，使用 <span class="uncompliant-red">...</span> 标签包裹，确保前端呈现红色。"""
 
 toolkit = Toolkit()
 
@@ -100,7 +102,7 @@ async def lifespan(app_instance):
 app = AgentApp(lifespan=lifespan)
 formatter = OpenAIChatFormatter()
 
-OR_KEY = 'xxxx'
+OR_KEY = 'xxxxx'
 
 mimo_model = OpenAIChatModel(
     'xiaomi/mimo-v2.5-pro',
@@ -110,13 +112,6 @@ mimo_model = OpenAIChatModel(
     generate_kwargs={'extra_body': {'reasoning': {'enabled': False}}},
 )
 
-kimi_model = OpenAIChatModel(
-    'moonshotai/kimi-k2.6',
-    OR_KEY, 
-    stream=True,
-    client_kwargs={'base_url': 'https://openrouter.ai/api/v1'},
-    generate_kwargs={'extra_body': {'reasoning': {'enabled': False}}},
-)
 
 qwen_plus_model = OpenAIChatModel(
     'qwen/qwen3.6-plus',
@@ -193,7 +188,7 @@ async def process(request: ProcessRequest):
             yield Msg('系统错误', f'Qwen审查过程出错: {e}', 'assistant')
 
         # 2. Mimo
-        yield Msg('系统', '【阶段2】正在调用 mimo-v2.5-pro 进行最终综合评判...', 'assistant')
+        yield Msg('系统', '【阶段2】正在调用 mimo-v2.5-pro 进行二次审查...', 'assistant')
         mimo_agent = ReActAgent('Mimo审查员', SYSTEM_PROMPT, mimo_model, formatter, toolkit, max_iters=10)
         mimo_agent.set_console_output_enabled(True)
         mimo_prompt = f"{user_prompt}\n\n===\n\n前期Qwen审查员的意见：\n{qwen_response}\n\n请结合以上意见和原始文档，给出最终的综合报告。"
@@ -230,10 +225,7 @@ async def process(request: ProcessRequest):
             yield Msg('系统错误', f'Mimo评判过程出错: {e}', 'assistant')
 
     else:
-        if request.model_choice == 'kimi':
-            current_model = kimi_model
-            agent_name = "Kimi审查员"
-        elif request.model_choice == 'qwen3.6':
+        if request.model_choice == 'qwen3.6':
             current_model = qwen_plus_model
             agent_name = "Qwen审查员"
         else:
@@ -544,6 +536,7 @@ textarea { flex: 1; margin-top: 10px; resize: none; min-height: 250px; line-heig
 .markdown-body table { width: 100%; border-collapse: collapse; margin: 10px 0; font-size: 11px; }
 .markdown-body th { background: rgba(0, 229, 255, 0.08); padding: 6px; text-align: left; }
 .markdown-body td { border-bottom: 1px solid rgba(255,255,255,0.05); padding: 6px; }
+.uncompliant-red { color: #ff4d4f !important; font-weight: 700; text-shadow: 0 0 10px rgba(255, 77, 79, 0.3); }
 
 .thinking-box {
   background: rgba(255, 204, 51, 0.04);
@@ -609,7 +602,6 @@ textarea { flex: 1; margin-top: 10px; resize: none; min-height: 250px; line-heig
         <select id="modelSel">
           <option value="comprehensive" selected>双智能体综合评判 (Qwen3.6 + MIMO-V2.5-PRO)</option>
           <option value="mimo">MIMO-V2.5 PRO (单智能体)</option>
-          <option value="kimi">KIMI-K2.6 (单智能体)</option>
           <option value="qwen3.6">Qwen 3.6 PLUS (单智能体)</option>
         </select>
       </div>
