@@ -67,16 +67,17 @@ def extract_document_text(b64_data, filename):
         return f'提取文档失败: {e}'
 
 SYSTEM_PROMPT = """你是一个专业的项目报告合规性审查智能体。
-你将收到：1) 审查规则检查表  2) 项目文档全文
+你将收到：1) 审查规则检查表  2) 项目文档全文。如果是综合评判阶段，你还会收到前期其他智能体的审查意见供参考。
 
 【严格工作规则】
-- 中文回答，回答言简意赅
-- 逐项审查：按照检查表中的每一条规则，在项目文档中查找对应内容
-- 找到对应内容：对比判断是否合规，给出合规/不合规的明确结论
-- 未找到对应内容：标注"文档中未体现该项"，直接跳过
-- 禁止使用任何工具或知识库，所有判断只基于用户上传的文档内容
-- 输出Markdown格式的合规性检查报告，重点突出【不合规】项目，并先总结说明，在分开阐述
-- 请一次性完成所有检查项的审查"""
+- 中文回答，回答言简意赅。
+- 必须严谨，绝对不能有任何编造的部分！！严格按照规则审查。
+- 逐项审查：按照检查表中的每一条规则，在项目文档中查找对应内容。
+- 找到对应内容：对比判断是否合规，给出合规/不合规的明确结论。
+- 未找到对应内容：标注"未查到相关内容"或"查不到"，直接跳过。能查到就查到，查不到就说查不到。
+- 禁止使用任何工具或知识库，所有判断只基于用户上传的文档内容。如果参考了其他智能体的意见，也必须亲自在文档中核实。
+- 输出Markdown格式的合规性检查报告，重点突出【不合规】项目，并先总结说明，再分开阐述。
+- 请一次性完成所有检查项的审查。"""
 
 toolkit = Toolkit()
 
@@ -154,37 +155,110 @@ async def process(request: ProcessRequest):
     if request.user_note and request.user_note.strip():
         user_prompt += f'\n\n===\n\n用户补充说明：\n{request.user_note.strip()}'
 
-    if request.model_choice == 'kimi':
-        current_model = kimi_model
-    elif request.model_choice == 'qwen3.6':
-        current_model = qwen_plus_model
+    if request.model_choice == 'comprehensive':
+        yield Msg('系统', '启动三智能体综合评判模式...', 'assistant')
+        
+        # 1. Kimi
+        yield Msg('系统', '【阶段1】正在调用 kimi-k2.6 审查...', 'assistant')
+        kimi_agent = ReActAgent('Kimi审查员', SYSTEM_PROMPT, kimi_model, formatter, toolkit, max_iters=10)
+        kimi_agent.set_console_output_enabled(True)
+        kimi_msg = Msg('用户', user_prompt, 'user')
+        
+        kimi_response = ""
+        try:
+            async for messages in stream_printing_messages([kimi_agent], kimi_agent([kimi_msg])):
+                if isinstance(messages, (list, tuple)):
+                    for m in messages:
+                        if isinstance(m, dict) and 'content' in m: kimi_response = m['content']
+                        elif getattr(m, 'content', None): kimi_response = m.content
+                        yield m
+                else:
+                    if isinstance(messages, dict) and 'content' in messages: kimi_response = messages['content']
+                    elif getattr(messages, 'content', None): kimi_response = messages.content
+                    yield messages
+        except Exception as e:
+            LOGGER.error(f'Kimi审查失败: {e}')
+            yield Msg('系统错误', f'Kimi审查过程出错: {e}', 'assistant')
+
+        # 2. Qwen
+        yield Msg('系统', '【阶段2】正在调用 qwen3.6-plus 审查...', 'assistant')
+        qwen_agent = ReActAgent('Qwen审查员', SYSTEM_PROMPT, qwen_plus_model, formatter, toolkit, max_iters=10)
+        qwen_agent.set_console_output_enabled(True)
+        qwen_prompt = f"{user_prompt}\n\n===\n\n前期Kimi审查员的意见供参考：\n{kimi_response}"
+        qwen_msg = Msg('用户', qwen_prompt, 'user')
+        
+        qwen_response = ""
+        try:
+            async for messages in stream_printing_messages([qwen_agent], qwen_agent([qwen_msg])):
+                if isinstance(messages, (list, tuple)):
+                    for m in messages:
+                        if isinstance(m, dict) and 'content' in m: qwen_response = m['content']
+                        elif getattr(m, 'content', None): qwen_response = m.content
+                        yield m
+                else:
+                    if isinstance(messages, dict) and 'content' in messages: qwen_response = messages['content']
+                    elif getattr(messages, 'content', None): qwen_response = messages.content
+                    yield messages
+        except Exception as e:
+            LOGGER.error(f'Qwen审查失败: {e}')
+            yield Msg('系统错误', f'Qwen审查过程出错: {e}', 'assistant')
+
+        # 3. Mimo
+        yield Msg('系统', '【阶段3】正在调用 mimo-v2.5-pro 进行最终综合评判...', 'assistant')
+        mimo_agent = ReActAgent('Mimo最终评判员', SYSTEM_PROMPT, mimo_model, formatter, toolkit, max_iters=10)
+        mimo_agent.set_console_output_enabled(True)
+        mimo_prompt = f"{user_prompt}\n\n===\n\n前期Kimi审查员的意见：\n{kimi_response}\n\n前期Qwen审查员的意见：\n{qwen_response}\n\n请结合以上意见和原始文档，给出最终的综合报告。"
+        mimo_msg = Msg('用户', mimo_prompt, 'user')
+        
+        try:
+            async for messages in stream_printing_messages([mimo_agent], mimo_agent([mimo_msg])):
+                if isinstance(messages, (list, tuple)):
+                    for m in messages:
+                        yield m
+                else:
+                    yield messages
+            LOGGER.info('综合审查完成')
+            yield Msg('系统', '✅ 综合评审报告生成完毕！', 'assistant')
+        except Exception as e:
+            LOGGER.error(f'Mimo评判失败: {e}')
+            await mimo_agent.interrupt()
+            yield Msg('系统错误', f'Mimo评判过程出错: {e}', 'assistant')
+
     else:
-        current_model = mimo_model
+        if request.model_choice == 'kimi':
+            current_model = kimi_model
+            agent_name = "Kimi审查员"
+        elif request.model_choice == 'qwen3.6':
+            current_model = qwen_plus_model
+            agent_name = "Qwen审查员"
+        else:
+            current_model = mimo_model
+            agent_name = "Mimo审查员"
 
-    agent = ReActAgent(
-        '审查智能体',
-        SYSTEM_PROMPT,
-        current_model,
-        formatter,
-        toolkit,
-        max_iters=10,
-    )
-    agent.set_console_output_enabled(True)
-    user_msg = Msg('用户', user_prompt, 'user')
+        agent = ReActAgent(
+            agent_name,
+            SYSTEM_PROMPT,
+            current_model,
+            formatter,
+            toolkit,
+            max_iters=10,
+        )
+        agent.set_console_output_enabled(True)
+        user_msg = Msg('用户', user_prompt, 'user')
 
-    try:
-        async for messages in stream_printing_messages([agent], agent([user_msg])):
-            if isinstance(messages, (list, tuple)):
-                for m in messages:
-                    yield m
-            else:
-                yield messages
-        LOGGER.info('审查完成')
-        yield Msg('系统', '✅ 报告生成完毕！', 'assistant')
-    except Exception as e:
-        LOGGER.error(f'审查失败: {e}')
-        await agent.interrupt()
-        yield Msg('系统错误', f'审查过程出错: {e}', 'assistant')
+        try:
+            async for messages in stream_printing_messages([agent], agent([user_msg])):
+                if isinstance(messages, (list, tuple)):
+                    for m in messages:
+                        yield m
+                else:
+                    yield messages
+            LOGGER.info('审查完成')
+            yield Msg('系统', '✅ 报告生成完毕！', 'assistant')
+        except Exception as e:
+            LOGGER.error(f'审查失败: {e}')
+            await agent.interrupt()
+            yield Msg('系统错误', f'审查过程出错: {e}', 'assistant')
 
 HTML_PAGE = r"""<!DOCTYPE html>
 <html lang="zh-CN">
@@ -515,9 +589,10 @@ textarea { flex: 1; margin-top: 10px; resize: none; min-height: 250px; line-heig
       <div style="margin-bottom: 12px;">
         <label style="font-size: 10px; color: var(--text-dim); display: block; margin-bottom: 6px;">选择审查模型</label>
         <select id="modelSel">
-          <option value="mimo">MIMO-V2.5 PRO</option>
-          <option value="kimi">KIMI-K2.6</option>
-          <option value="qwen3.6">QWEN 3.6 PLUS</option>
+          <option value="comprehensive" selected>三智能体综合评判 (推荐)</option>
+          <option value="mimo">MIMO-V2.5 PRO (单智能体)</option>
+          <option value="kimi">KIMI-K2.6 (单智能体)</option>
+          <option value="qwen3.6">QWEN 3.6 PLUS (单智能体)</option>
         </select>
       </div>
       <div>
@@ -668,7 +743,7 @@ function handleMsg(msg,tBlk,rBlk){
   var name=msg.name||'';
   var c=msg.content;
   if(!name)return;
-  var isReport=(name==='审查智能体');
+  var isReport=(name.indexOf('审查员')>=0 || name.indexOf('评判员')>=0 || name==='审查智能体');
   var isSystem=(name==='系统');
   var cont=document.getElementById(isReport?'rb':'tb');
   
