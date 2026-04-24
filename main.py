@@ -70,7 +70,7 @@ SYSTEM_PROMPT = """你是一个专业的项目报告合规性审查智能体。
 你将收到：1) 审查规则检查表  2) 项目文档全文。如果是综合评判阶段，你还会收到前期其他智能体的审查意见供参考。
 
 【严格工作规则】
-- 中文回答，回答言简意赅。
+- 中文回答，回答必须言简意赅。
 - 必须严谨，绝对不能有任何编造的部分！！严格按照规则审查。
 - 逐项审查：按照检查表中的每一条规则，在项目文档中查找对应内容。
 - 找到对应内容：对比判断是否合规，给出合规/不合规的明确结论。
@@ -78,6 +78,18 @@ SYSTEM_PROMPT = """你是一个专业的项目报告合规性审查智能体。
 - 禁止使用任何工具或知识库，所有判断只基于用户上传的文档内容。如果参考了其他智能体的意见，也必须亲自在文档中核实。
 - 输出Markdown格式的合规性检查报告，重点突出【不合规】项目，并先总结说明，再分开阐述。
 - 请一次性完成所有检查项的审查。"""
+
+SUMMARY_PROMPT = """你是一个专业的报告精炼专家。
+请基于提供的审查报告，提取并只输出：
+1. 总体合规性总结
+2. 明确的【不合规】项及其原因
+
+要求：
+- 极其言简意赅。
+- 严禁输出合规项。
+- 严禁输出“未查到”或“未体现”的内容。
+- 严禁编造。
+- 使用Markdown格式输出。"""
 
 toolkit = Toolkit()
 
@@ -88,7 +100,7 @@ async def lifespan(app_instance):
 app = AgentApp(lifespan=lifespan)
 formatter = OpenAIChatFormatter()
 
-OR_KEY = 'xxxxx'
+OR_KEY = 'xxxx'
 
 mimo_model = OpenAIChatModel(
     'xiaomi/mimo-v2.5-pro',
@@ -156,36 +168,13 @@ async def process(request: ProcessRequest):
         user_prompt += f'\n\n===\n\n用户补充说明：\n{request.user_note.strip()}'
 
     if request.model_choice == 'comprehensive':
-        yield Msg('系统', '启动三智能体综合评判模式...', 'assistant')
-        
-        # 1. Kimi
-        yield Msg('系统', '【阶段1】正在调用 kimi-k2.6 审查...', 'assistant')
-        kimi_agent = ReActAgent('Kimi审查员', SYSTEM_PROMPT, kimi_model, formatter, toolkit, max_iters=10)
-        kimi_agent.set_console_output_enabled(True)
-        kimi_msg = Msg('用户', user_prompt, 'user')
-        
-        kimi_response = ""
-        try:
-            async for messages in stream_printing_messages([kimi_agent], kimi_agent([kimi_msg])):
-                if isinstance(messages, (list, tuple)):
-                    for m in messages:
-                        if isinstance(m, dict) and 'content' in m: kimi_response = m['content']
-                        elif getattr(m, 'content', None): kimi_response = m.content
-                        yield m
-                else:
-                    if isinstance(messages, dict) and 'content' in messages: kimi_response = messages['content']
-                    elif getattr(messages, 'content', None): kimi_response = messages.content
-                    yield messages
-        except Exception as e:
-            LOGGER.error(f'Kimi审查失败: {e}')
-            yield Msg('系统错误', f'Kimi审查过程出错: {e}', 'assistant')
+        yield Msg('系统', '启动双智能体综合评判模式...', 'assistant')
 
-        # 2. Qwen
-        yield Msg('系统', '【阶段2】正在调用 qwen3.6-plus 审查...', 'assistant')
+        # 1. Qwen
+        yield Msg('系统', '【阶段1】正在调用 qwen3.6-plus 审查...', 'assistant')
         qwen_agent = ReActAgent('Qwen审查员', SYSTEM_PROMPT, qwen_plus_model, formatter, toolkit, max_iters=10)
         qwen_agent.set_console_output_enabled(True)
-        qwen_prompt = f"{user_prompt}\n\n===\n\n前期Kimi审查员的意见供参考：\n{kimi_response}"
-        qwen_msg = Msg('用户', qwen_prompt, 'user')
+        qwen_msg = Msg('用户', user_prompt, 'user')
         
         qwen_response = ""
         try:
@@ -203,22 +192,38 @@ async def process(request: ProcessRequest):
             LOGGER.error(f'Qwen审查失败: {e}')
             yield Msg('系统错误', f'Qwen审查过程出错: {e}', 'assistant')
 
-        # 3. Mimo
-        yield Msg('系统', '【阶段3】正在调用 mimo-v2.5-pro 进行最终综合评判...', 'assistant')
-        mimo_agent = ReActAgent('Mimo最终评判员', SYSTEM_PROMPT, mimo_model, formatter, toolkit, max_iters=10)
+        # 2. Mimo
+        yield Msg('系统', '【阶段2】正在调用 mimo-v2.5-pro 进行最终综合评判...', 'assistant')
+        mimo_agent = ReActAgent('Mimo审查员', SYSTEM_PROMPT, mimo_model, formatter, toolkit, max_iters=10)
         mimo_agent.set_console_output_enabled(True)
-        mimo_prompt = f"{user_prompt}\n\n===\n\n前期Kimi审查员的意见：\n{kimi_response}\n\n前期Qwen审查员的意见：\n{qwen_response}\n\n请结合以上意见和原始文档，给出最终的综合报告。"
+        mimo_prompt = f"{user_prompt}\n\n===\n\n前期Qwen审查员的意见：\n{qwen_response}\n\n请结合以上意见和原始文档，给出最终的综合报告。"
         mimo_msg = Msg('用户', mimo_prompt, 'user')
         
+        mimo_response = ""
         try:
             async for messages in stream_printing_messages([mimo_agent], mimo_agent([mimo_msg])):
                 if isinstance(messages, (list, tuple)):
                     for m in messages:
+                        if isinstance(m, dict) and 'content' in m: mimo_response = m['content']
+                        elif getattr(m, 'content', None): mimo_response = m.content
                         yield m
                 else:
+                    if isinstance(messages, dict) and 'content' in messages: mimo_response = messages['content']
+                    elif getattr(messages, 'content', None): mimo_response = messages.content
                     yield messages
+            
+            # 最终总结阶段
+            yield Msg('系统', '【阶段3】正在生成最终不合规结论...', 'assistant')
+            summary_agent = ReActAgent('最终审查报告', SUMMARY_PROMPT, mimo_model, formatter, toolkit)
+            summary_agent.set_console_output_enabled(True)
+            summary_msg = Msg('用户', f"请根据以下报告生成精简总结：\n\n{mimo_response}", 'user')
+            async for messages in stream_printing_messages([summary_agent], summary_agent([summary_msg])):
+                if isinstance(messages, (list, tuple)):
+                    for m in messages: yield m
+                else: yield messages
+
             LOGGER.info('综合审查完成')
-            yield Msg('系统', '✅ 综合评审报告生成完毕！', 'assistant')
+            yield Msg('系统', '✅ 综合评审已完成！', 'assistant')
         except Exception as e:
             LOGGER.error(f'Mimo评判失败: {e}')
             await mimo_agent.interrupt()
@@ -235,24 +240,32 @@ async def process(request: ProcessRequest):
             current_model = mimo_model
             agent_name = "Mimo审查员"
 
-        agent = ReActAgent(
-            agent_name,
-            SYSTEM_PROMPT,
-            current_model,
-            formatter,
-            toolkit,
-            max_iters=10,
-        )
+        agent = ReActAgent(agent_name, SYSTEM_PROMPT, current_model, formatter, toolkit, max_iters=10)
         agent.set_console_output_enabled(True)
         user_msg = Msg('用户', user_prompt, 'user')
 
+        last_response = ""
         try:
             async for messages in stream_printing_messages([agent], agent([user_msg])):
                 if isinstance(messages, (list, tuple)):
                     for m in messages:
+                        if isinstance(m, dict) and 'content' in m: last_response = m['content']
+                        elif getattr(m, 'content', None): last_response = m.content
                         yield m
                 else:
+                    if isinstance(messages, dict) and 'content' in messages: last_response = messages['content']
+                    elif getattr(messages, 'content', None): last_response = messages.content
                     yield messages
+            
+            # 最终总结阶段
+            yield Msg('系统', '正在生成最终精简结论...', 'assistant')
+            summary_agent = ReActAgent('最终审查报告', SUMMARY_PROMPT, current_model, formatter, toolkit)
+            summary_msg = Msg('用户', f"请根据以下报告生成精简总结：\n\n{last_response}", 'user')
+            async for messages in stream_printing_messages([summary_agent], summary_agent([summary_msg])):
+                if isinstance(messages, (list, tuple)):
+                    for m in messages: yield m
+                else: yield messages
+
             LOGGER.info('审查完成')
             yield Msg('系统', '✅ 报告生成完毕！', 'assistant')
         except Exception as e:
@@ -337,13 +350,13 @@ header p {
 }
 
 .main-container {
-  max-width: 1800px;
+  max-width: 1900px;
   width: 100%;
   margin: 0 auto;
-  padding: 0 40px 40px;
+  padding: 0 30px 30px;
   display: grid;
-  grid-template-columns: 420px 1fr; /* 调宽侧边栏 */
-  gap: 30px;
+  grid-template-columns: 320px 1fr 480px; 
+  gap: 20px;
   flex: 1;
   min-height: 0; 
 }
@@ -487,7 +500,7 @@ textarea { flex: 1; margin-top: 10px; resize: none; min-height: 250px; line-heig
   overflow: hidden;
 }
 /* 报告面板 */
-.panel-report {
+.panel-report, .panel-final {
   flex: 1;
   display: flex;
   flex-direction: column;
@@ -498,8 +511,13 @@ textarea { flex: 1; margin-top: 10px; resize: none; min-height: 250px; line-heig
   min-height: 0;
 }
 
+.panel-final {
+  border-left: 2px solid var(--accent-blue);
+  background: rgba(0, 229, 255, 0.02);
+}
+
 .panel-header {
-  padding: 8px 16px;
+  padding: 10px 16px;
   border-bottom: 1px solid var(--glass-border);
   display: flex;
   justify-content: space-between;
@@ -567,14 +585,14 @@ textarea { flex: 1; margin-top: 10px; resize: none; min-height: 250px; line-heig
       <div class="title-tag">源文件上传</div>
       <div class="upload-group">
         <label class="upload-btn">
-          <input type="file" id="rf" accept=".xlsx,.xls" onchange="uf('rf','rn')">
-          <span class="icon">📋</span>
+          <input type="file" id="rf" accept=".xlsx,.xls" onchange="uf('rf','rn','rs')">
+          <span class="icon">📋 <small id="rs" style="font-size: 10px; margin-left: 5px;"></small></span>
           <span class="label">审查规则检查表</span>
           <span class="filename" id="rn">未选择文件</span>
         </label>
         <label class="upload-btn">
-          <input type="file" id="df" accept=".pdf,.docx" onchange="uf('df','dn')">
-          <span class="icon">📄</span>
+          <input type="file" id="df" accept=".pdf,.docx" onchange="uf('df','dn','ds')">
+          <span class="icon">📄 <small id="ds" style="font-size: 10px; margin-left: 5px;"></small></span>
           <span class="label">项目文档全文</span>
           <span class="filename" id="dn">未选择文件</span>
         </label>
@@ -589,10 +607,10 @@ textarea { flex: 1; margin-top: 10px; resize: none; min-height: 250px; line-heig
       <div style="margin-bottom: 12px;">
         <label style="font-size: 10px; color: var(--text-dim); display: block; margin-bottom: 6px;">选择审查模型</label>
         <select id="modelSel">
-          <option value="comprehensive" selected>三智能体综合评判 (推荐)</option>
+          <option value="comprehensive" selected>双智能体综合评判 (Qwen3.6 + MIMO-V2.5-PRO)</option>
           <option value="mimo">MIMO-V2.5 PRO (单智能体)</option>
           <option value="kimi">KIMI-K2.6 (单智能体)</option>
-          <option value="qwen3.6">QWEN 3.6 PLUS (单智能体)</option>
+          <option value="qwen3.6">Qwen 3.6 PLUS (单智能体)</option>
         </select>
       </div>
       <div>
@@ -601,7 +619,7 @@ textarea { flex: 1; margin-top: 10px; resize: none; min-height: 250px; line-heig
       </div>
     </div>
 
-    <button class="btn-primary" id="sb" onclick="go()">开始合规扫描</button>
+    <button class="btn-primary" id="sb" onclick="go()">开始合规审查</button>
   </div>
 
   <div class="content-area">
@@ -615,7 +633,7 @@ textarea { flex: 1; margin-top: 10px; resize: none; min-height: 250px; line-heig
     <div class="panels-wrapper" id="panels">
       <div class="panel-thinking" id="tp-panel">
         <div class="panel-header">
-          <h3>思考逻辑流 (REASONING)</h3>
+          <h3>推理逻辑 (REASONING)</h3>
           <div class="indicator"></div>
         </div>
         <div class="scroll-content" id="tb"></div>
@@ -628,6 +646,14 @@ textarea { flex: 1; margin-top: 10px; resize: none; min-height: 250px; line-heig
         <div class="scroll-content" id="rb"></div>
       </div>
     </div>
+  </div>
+
+  <div class="panel-final" id="fp-panel">
+    <div class="panel-header">
+      <h3>最终合规结论 (CONCLUSION)</h3>
+      <div class="indicator"></div>
+    </div>
+    <div class="scroll-content" id="fb"></div>
   </div>
 </div>
 </div>
@@ -690,10 +716,44 @@ initParticles();
 animate();
 autoScale();
 
-function uf(a,b){
-  var f=document.getElementById(a).files[0];
-  var el=document.getElementById(b);
-  el.innerText=f?f.name:'未选择文件';
+let fileCache = { rf: null, df: null };
+let fileStatus = { rf: false, df: false };
+
+async function uf(id, labelId, statusId){
+  const f = document.getElementById(id).files[0];
+  const el = document.getElementById(labelId);
+  const st = document.getElementById(statusId);
+  if(!f) {
+    el.innerText = '未选择文件';
+    if(st) st.innerText = '';
+    fileCache[id] = null;
+    fileStatus[id] = false;
+    return;
+  }
+  
+  el.innerText = f.name;
+  if(st) {
+    st.innerText = '(正在上传...)';
+    st.style.color = 'var(--accent-gold)';
+  }
+  fileStatus[id] = true;
+  
+  try {
+    const data = await tb_file(f);
+    fileCache[id] = data;
+    fileStatus[id] = false;
+    if(st) {
+      st.innerText = '(上传完成)';
+      st.style.color = '#00ff00';
+    }
+  } catch(e) {
+    fileStatus[id] = false;
+    if(st) {
+      st.innerText = '(上传失败)';
+      st.style.color = '#ff4444';
+    }
+    alert('文件上传失败: ' + e.message);
+  }
 }
 
 function ss(n){
@@ -739,31 +799,33 @@ function goc(container,blocks,name){
   return blocks[name];
 }
 
-function handleMsg(msg,tBlk,rBlk){
+function handleMsg(msg,tBlk,rBlk,fBlk){
   var name=msg.name||'';
   var c=msg.content;
   if(!name)return;
-  var isReport=(name.indexOf('审查员')>=0 || name.indexOf('评判员')>=0 || name==='审查智能体');
+  var isFinal=(name==='最终审查报告');
+  var isReport=(name.indexOf('审查员')>=0 || name.indexOf('评判员')>=0 || name==='审查智能体') && !isFinal;
   var isSystem=(name==='系统');
-  var cont=document.getElementById(isReport?'rb':'tb');
   
-  // 对于系统消息或推理流，如果是步骤更新，我们保留历史
+  var targetId = isFinal ? 'fb' : (isReport ? 'rb' : 'tb');
+  var cont = document.getElementById(targetId);
+  
   var el;
   if (isSystem) {
-    // 系统消息每次都创建新块，不覆盖
     var w=document.createElement('div'); w.className='msg-block';
     var t=document.createElement('div'); t.className='msg-name'; t.innerText=name;
     var b=document.createElement('div'); b.className='markdown-body';
     w.appendChild(t); w.appendChild(b); cont.appendChild(w);
     el = b;
   } else {
-    var blk=isReport?rBlk:tBlk;
+    var blk = isFinal ? fBlk : (isReport ? rBlk : tBlk);
     el=goc(cont,blk,name);
   }
   
   el.innerHTML=rc(c);
   
-  if (isReport) document.getElementById('rp-panel').classList.add('panel-active');
+  if (isFinal) document.getElementById('fp-panel').classList.add('panel-active');
+  else if (isReport) document.getElementById('rp-panel').classList.add('panel-active');
   else document.getElementById('tp-panel').classList.add('panel-active');
 
   cont.scrollTop=cont.scrollHeight;
@@ -780,15 +842,24 @@ async function go(){
   var df=document.getElementById('df').files[0];
   if(!rf||!df){alert('错误：请先上传审查规则和项目文档。');return;}
   
+  if(fileStatus['rf'] || fileStatus['df']){
+    alert('等待文件上传完成！！！');
+    return;
+  }
+  
   var btn=document.getElementById('sb');
-  btn.disabled=true; btn.innerText='扫描中...';
+  btn.disabled=true; btn.innerText='审查中...';
   
   document.getElementById('tb').innerHTML='';
   document.getElementById('rb').innerHTML='';
+  document.getElementById('fb').innerHTML='';
+  document.getElementById('tp-panel').classList.remove('panel-active');
+  document.getElementById('rp-panel').classList.remove('panel-active');
+  document.getElementById('fp-panel').classList.remove('panel-active');
   ss(1);
   
   try{
-    var rb_data=await tb_file(rf), db_data=await tb_file(df);
+    var rb_data=fileCache['rf'], db_data=fileCache['df'];
     var md=document.getElementById('modelSel').value;
     var un=document.getElementById('un').value||'';
     
@@ -800,7 +871,7 @@ async function go(){
     
     var reader=resp.body.getReader();
     var dec=new TextDecoder();
-    var buf='',tBlk={},rBlk={};
+    var buf='',tBlk={},rBlk={},fBlk={};
     
     while(true){
       var res=await reader.read();
@@ -815,13 +886,13 @@ async function go(){
         if(!raw)continue;
         try{
           var parsed=JSON.parse(raw);
-          if(Array.isArray(parsed)){for(var j=0;j<parsed.length;j++)handleMsg(parsed[j],tBlk,rBlk);}
-          else{handleMsg(parsed,tBlk,rBlk);}
+          if(Array.isArray(parsed)){for(var j=0;j<parsed.length;j++)handleMsg(parsed[j],tBlk,rBlk,fBlk);}
+          else{handleMsg(parsed,tBlk,rBlk,fBlk);}
         }catch(e){}
       }
     }
-  }catch(e){alert('扫描失败: '+e.message);}
-  finally{btn.disabled=false; btn.innerText='重新扫描';}
+  }catch(e){alert('审查失败: '+e.message);}
+  finally{btn.disabled=false; btn.innerText='重新审查';}
 }
 </script>
 </body>
