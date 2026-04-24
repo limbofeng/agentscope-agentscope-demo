@@ -16,6 +16,7 @@ source .venv/bin/activate
 
 ```bash
 pip install agentscope-runtime
+pip install -r requirements.txt
 ```
 
 ## 项目结构

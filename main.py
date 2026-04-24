@@ -190,189 +190,543 @@ HTML_PAGE = r"""<!DOCTYPE html>
 <html lang="zh-CN">
 <head>
 <meta charset="UTF-8">
-<title>项目合规性评审系统</title>
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>AI 智能项目合规评审中心</title>
 <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
 <style>
-@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap');
-*{box-sizing:border-box;margin:0;padding:0;font-family:'Inter',system-ui,-apple-system,sans-serif}
-body{background:radial-gradient(circle at top left,#f4f6fa 0%,#e3e8f0 100%);color:#2d3748;min-height:100vh}
-/* 玻璃拟物化头部 */
-.hd{background:linear-gradient(135deg,rgba(26,43,76,0.9),rgba(36,58,99,0.95));backdrop-filter:blur(10px);color:#fff;text-align:center;padding:50px 20px 80px;border-bottom:1px solid rgba(255,255,255,0.1);position:relative;overflow:hidden}
-.hd::before{content:'';position:absolute;top:-50%;left:-50%;width:200%;height:200%;background:radial-gradient(circle,rgba(255,255,255,0.05) 0%,transparent 50%);pointer-events:none}
-.hd h1{font-size:32px;letter-spacing:2px;font-weight:700;text-shadow:0 2px 10px rgba(0,0,0,0.2)}
-.hd p{color:#a0aec0;font-size:12px;letter-spacing:5px;margin-top:12px;text-transform:uppercase;font-weight:600}
-.badge{background:linear-gradient(90deg,rgba(238,187,85,0.2),rgba(238,187,85,0.1));border:1px solid rgba(238,187,85,0.3);color:#eebb55;padding:6px 18px;border-radius:30px;font-size:11px;display:inline-block;margin-top:16px;box-shadow:0 4px 15px rgba(238,187,85,0.1)}
-.wrap{max-width:1400px;margin:-40px auto 40px;padding:0 20px;position:relative;z-index:10}
-.card{background:rgba(255,255,255,0.95);backdrop-filter:blur(20px);border:1px solid rgba(255,255,255,0.8);border-radius:16px;box-shadow:0 10px 40px rgba(0,0,0,0.06);padding:30px;margin-bottom:24px;transition:transform 0.3s ease,box-shadow 0.3s ease}
-.card:hover{box-shadow:0 15px 50px rgba(0,0,0,0.08);transform:translateY(-2px)}
-.ct{font-size:12px;font-weight:700;color:#718096;letter-spacing:1.5px;margin-bottom:16px;text-transform:uppercase;display:flex;align-items:center}
-.ct::before{content:'';display:inline-block;width:4px;height:14px;background:#4a90e2;border-radius:4px;margin-right:8px}
-.security-notice{display:flex;align-items:center;background:rgba(74,144,226,0.1);padding:10px 16px;border-radius:8px;font-size:13px;color:#2b6cb0;margin-bottom:24px;font-weight:500;border:1px solid rgba(74,144,226,0.2)}
-.security-notice span{margin-right:8px;font-size:16px}
-.ur{display:flex;gap:20px;margin-bottom:24px}
-.ub{flex:1;border:2px dashed #cbd5e0;border-radius:12px;padding:30px 20px;text-align:center;cursor:pointer;transition:all 0.3s ease;position:relative;background:rgba(247,250,252,0.6)}
-.ub:hover{border-color:#4a90e2;background:#ebf8ff}
-.ub input{position:absolute;inset:0;opacity:0;cursor:pointer}
-.ub .ic{font-size:32px;margin-bottom:12px;filter:drop-shadow(0 4px 6px rgba(0,0,0,0.1))}
-.ub .tt{font-weight:700;color:#2d3748;font-size:14px}
-.ub .ds{font-size:12px;color:#a0aec0;margin-top:4px}
-.ub .fn{font-size:12px;color:#4a90e2;margin-top:12px;word-break:break-all;font-weight:600;background:rgba(74,144,226,0.1);padding:4px 10px;border-radius:20px;display:inline-block}
-.btn{background:linear-gradient(135deg,#4a90e2 0%,#3182ce 100%);color:#fff;border:none;padding:16px 0;width:100%;border-radius:12px;font-size:16px;font-weight:700;letter-spacing:1px;cursor:pointer;transition:all 0.3s ease;box-shadow:0 8px 20px rgba(74,144,226,0.3)}
-.btn:hover{background:linear-gradient(135deg,#3182ce 0%,#2b6cb0 100%);box-shadow:0 10px 25px rgba(74,144,226,0.4);transform:translateY(-1px)}
-.btn:disabled{background:#e2e8f0;cursor:not-allowed;box-shadow:none;color:#a0aec0;transform:none}
-select,textarea{width:100%;padding:14px 16px;border:1px solid #e2e8f0;border-radius:10px;font-size:14px;background:#f8fafc;color:#2d3748;outline:none;transition:all 0.3s ease;font-family:inherit}
-select:focus,textarea:focus{border-color:#4a90e2;box-shadow:0 0 0 3px rgba(74,144,226,0.1);background:#fff}
-.steps{display:none;justify-content:center;align-items:center;gap:15px;padding:30px 0}
-.st{display:flex;align-items:center;gap:8px;color:#a0aec0;font-size:14px;font-weight:500;transition:.3s}
-.sn{width:28px;height:28px;border-radius:50%;background:#e2e8f0;display:flex;align-items:center;justify-content:center;font-size:13px;font-weight:700;transition:.3s}
-.st.on{color:#2d3748;font-weight:700}
-.st.on .sn{background:linear-gradient(135deg,#eebb55,#d4a347);color:#fff;box-shadow:0 4px 12px rgba(238,187,85,0.4)}
-.sl{width:40px;height:2px;background:#e2e8f0;transition:.3s}
-.panels{display:none;gap:24px}
-.pn{flex:1;min-width:0;display:flex;flex-direction:column}
-.ph{font-size:13px;font-weight:700;letter-spacing:1px;margin-bottom:16px;padding-bottom:12px;border-bottom:2px solid;display:flex;align-items:center}
-#tp .ph{color:#d4a347;border-color:rgba(212,163,71,0.2)}
-#rp .ph{color:#4a90e2;border-color:rgba(74,144,226,0.2)}
-.pb{font-size:14px;line-height:1.8;height:70vh;overflow-y:auto;padding-right:8px;scroll-behavior:smooth}
-.pb::-webkit-scrollbar{width:6px}
-.pb::-webkit-scrollbar-track{background:rgba(0,0,0,0.02);border-radius:10px}
-.pb::-webkit-scrollbar-thumb{background:rgba(0,0,0,0.1);border-radius:10px}
-.mb{margin-bottom:20px;padding:16px 20px;border-radius:12px;border:1px solid rgba(0,0,0,0.03);box-shadow:0 2px 10px rgba(0,0,0,0.02)}
-#tp .mb{background:linear-gradient(to right,rgba(255,252,240,0.8),rgba(255,255,255,0.9));border-left:4px solid #d4a347;font-size:13px;color:#4a5568}
-#rp .mb{background:linear-gradient(to right,rgba(240,245,255,0.8),rgba(255,255,255,0.9));border-left:4px solid #4a90e2}
-.mn{font-weight:700;font-size:11px;letter-spacing:1px;margin-bottom:8px;text-transform:uppercase;color:#718096;display:flex;align-items:center;gap:6px}
-.mn::before{content:'';display:inline-block;width:6px;height:6px;border-radius:50%;background:currentColor}
-.mc p{margin:0 0 10px}
-.mc pre{background:#2d3748;color:#f7fafc;padding:12px;border-radius:8px;overflow-x:auto;font-size:12px;margin:10px 0;box-shadow:inset 0 2px 4px rgba(0,0,0,0.2)}
-.mc code{background:rgba(0,0,0,0.05);padding:2px 6px;border-radius:4px;font-size:12px;color:#e53e3e}
-.mc pre code{background:none;color:inherit;padding:0}
-.mc table{border-collapse:collapse;width:100%;margin:12px 0;font-size:13px;border-radius:8px;overflow:hidden;box-shadow:0 0 0 1px #e2e8f0}
-.mc th,.mc td{padding:12px 16px;text-align:left;border-bottom:1px solid #e2e8f0}
-.mc th{background:#f8fafc;font-weight:600;color:#4a5568}
-.mc tr:last-child td{border-bottom:none}
-.mc blockquote{border-left:4px solid #eebb55;padding:10px 16px;background:rgba(238,187,85,0.05);border-radius:0 8px 8px 0;margin:10px 0;color:#718096;font-style:italic}
-.mc h1,.mc h2,.mc h3{margin:16px 0 8px;color:#2d3748;font-weight:700}
+@import url('https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@300;400;500;600;700;800&family=JetBrains+Mono:wght@400;500&display=swap');
+
+:root {
+  --bg-color: #05080f;
+  --accent-blue: #00e5ff;
+  --accent-gold: #ffcc33;
+  --glass-bg: rgba(255, 255, 255, 0.03);
+  --glass-border: rgba(255, 255, 255, 0.1);
+  --text-main: #e2e8f0;
+  --text-dim: #94a3b8;
+}
+
+* { box-sizing: border-box; margin: 0; padding: 0; }
+body {
+  font-family: 'Plus Jakarta Sans', 'PingFang SC', 'Microsoft YaHei', sans-serif;
+  background-color: var(--bg-color);
+  color: var(--text-main);
+  overflow: hidden;
+  height: 100vh;
+  width: 100vw;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+#scaler-wrapper {
+  width: 1920px; 
+  height: 1080px; /* 提升至 1080p 基准 */
+  transform-origin: center center;
+  display: flex;
+  flex-direction: column;
+}
+
+#canvas-bg {
+  position: fixed;
+  top: 0; left: 0; width: 100%; height: 100%;
+  z-index: -1;
+  opacity: 0.6;
+}
+
+.blob {
+  position: fixed;
+  width: 500px; height: 500px;
+  background: radial-gradient(circle, rgba(0, 229, 255, 0.08) 0%, transparent 70%);
+  z-index: -1; filter: blur(60px);
+}
+
+header {
+  padding: 20px 20px 10px;
+  text-align: center;
+  flex: 0 0 auto;
+}
+header h1 {
+  font-size: clamp(1.8rem, 4vw, 2.5rem);
+  font-weight: 800;
+  background: linear-gradient(to right, #fff, #00e5ff, #fff);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  letter-spacing: 2px;
+}
+header p {
+  color: var(--text-dim);
+  font-size: 11px;
+  letter-spacing: 6px;
+  text-transform: uppercase;
+  margin-top: 5px;
+}
+
+.main-container {
+  max-width: 1800px;
+  width: 100%;
+  margin: 0 auto;
+  padding: 0 40px 40px;
+  display: grid;
+  grid-template-columns: 420px 1fr; /* 调宽侧边栏 */
+  gap: 30px;
+  flex: 1;
+  min-height: 0; 
+}
+
+/* 左侧配置面板 */
+.sidebar {
+  display: flex;
+  flex-direction: column;
+  gap: 24px;
+  height: 100%;
+}
+.sidebar .glass-card {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+}
+.sidebar .glass-card:last-of-type {
+  flex: 1.5; /* 让核心配置占据更多垂直空间 */
+}
+
+.glass-card {
+  background: var(--glass-bg);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+  border: 1px solid var(--glass-border);
+  border-radius: 24px;
+  padding: 24px;
+  box-shadow: 0 8px 32px 0 rgba(0, 0, 0, 0.3);
+}
+
+.title-tag {
+  font-size: 13px;
+  font-weight: 700;
+  text-transform: uppercase;
+  color: var(--accent-blue);
+  letter-spacing: 2px;
+  margin-bottom: 15px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.title-tag::before {
+  content: ''; display: block; width: 6px; height: 6px; background: var(--accent-blue); border-radius: 50%; box-shadow: 0 0 10px var(--accent-blue);
+}
+
+.upload-group {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+.upload-btn {
+  position: relative;
+  flex: 1;
+  min-height: 140px;
+  border: 1px dashed rgba(255,255,255,0.15);
+  border-radius: 20px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+  background: rgba(255,255,255,0.01);
+}
+.upload-btn:hover {
+  border-color: var(--accent-blue);
+  background: rgba(0, 229, 255, 0.05);
+}
+.upload-btn input { position: absolute; inset: 0; opacity: 0; cursor: pointer; }
+.upload-btn .icon { font-size: 28px; margin-bottom: 10px; }
+.upload-btn .label { font-size: 14px; font-weight: 600; }
+.upload-btn .filename { font-size: 11px; color: var(--accent-blue); margin-top: 6px; max-width: 85%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-family: 'JetBrains Mono'; }
+
+select, textarea {
+  width: 100%;
+  background: rgba(255,255,255,0.04);
+  border: 1px solid rgba(255,255,255,0.1);
+  border-radius: 12px;
+  color: #fff;
+  padding: 12px 16px;
+  font-size: 14px;
+  outline: none;
+}
+textarea { flex: 1; margin-top: 10px; resize: none; min-height: 250px; line-height: 1.5; }
+
+.btn-primary {
+  background: linear-gradient(135deg, #00e5ff 0%, #007bff 100%);
+  color: #000;
+  border: none;
+  border-radius: 16px;
+  padding: 18px;
+  font-weight: 800;
+  font-size: 16px;
+  cursor: pointer;
+  box-shadow: 0 4px 20px rgba(0, 229, 255, 0.15);
+}
+.btn-primary:hover { transform: translateY(-1px); box-shadow: 0 8px 25px rgba(0, 229, 255, 0.3); }
+
+/* 右侧内容面板 */
+.content-area {
+  display: flex;
+  flex-direction: column;
+  gap: 15px;
+  min-height: 0;
+}
+
+.status-bar {
+  display: flex;
+  justify-content: space-between;
+  padding: 0 10px;
+  flex: 0 0 auto;
+}
+.step-dot {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 6px;
+  opacity: 0.3;
+}
+.step-dot.active { opacity: 1; color: var(--accent-blue); }
+.step-dot .circle { width: 10px; height: 10px; border-radius: 50%; background: #fff; }
+.step-dot.active .circle { background: var(--accent-blue); box-shadow: 0 0 10px var(--accent-blue); }
+.step-dot .label { font-size: 10px; font-weight: 700; }
+
+.panels-wrapper {
+  display: flex;
+  flex-direction: column;
+  gap: 15px;
+  flex: 1;
+  min-height: 0;
+}
+
+/* 思考面板 */
+.panel-thinking {
+  flex: 0 0 140px;
+  display: flex;
+  flex-direction: column;
+  background: rgba(255,255,255,0.02);
+  border: 1px solid var(--glass-border);
+  border-radius: 16px;
+  overflow: hidden;
+}
+/* 报告面板 */
+.panel-report {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  background: var(--glass-bg);
+  border: 1px solid var(--glass-border);
+  border-radius: 20px;
+  overflow: hidden;
+  min-height: 0;
+}
+
+.panel-header {
+  padding: 8px 16px;
+  border-bottom: 1px solid var(--glass-border);
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  background: rgba(255,255,255,0.02);
+}
+.panel-header h3 { font-size: 11px; font-weight: 700; color: var(--text-dim); text-transform: uppercase; letter-spacing: 1px; }
+.panel-header .indicator { width: 6px; height: 6px; border-radius: 50%; background: #333; }
+.panel-active .indicator { background: #00ff00; box-shadow: 0 0 8px #00ff00; }
+
+.scroll-content {
+  flex: 1;
+  overflow-y: auto;
+  padding: 15px 20px;
+  scroll-behavior: smooth;
+}
+.scroll-content::-webkit-scrollbar { width: 4px; }
+.scroll-content::-webkit-scrollbar-thumb { background: rgba(255,255,255,0.1); border-radius: 10px; }
+
+.msg-block { margin-bottom: 15px; animation: slideUp 0.4s ease-out; }
+.msg-name { font-family: 'JetBrains Mono'; font-size: 10px; font-weight: 700; color: var(--accent-blue); margin-bottom: 4px; opacity: 0.6; }
+.markdown-body { font-size: 13px; line-height: 1.6; color: var(--text-main); }
+.markdown-body p { margin-bottom: 6px; }
+.markdown-body table { width: 100%; border-collapse: collapse; margin: 10px 0; font-size: 11px; }
+.markdown-body th { background: rgba(0, 229, 255, 0.08); padding: 6px; text-align: left; }
+.markdown-body td { border-bottom: 1px solid rgba(255,255,255,0.05); padding: 6px; }
+
+.thinking-box {
+  background: rgba(255, 204, 51, 0.04);
+  border-left: 2px solid var(--accent-gold);
+  padding: 6px 10px;
+  margin: 4px 0;
+  border-radius: 0 8px 8px 0;
+  font-style: italic;
+  color: #bbb;
+  font-size: 11px;
+}
+
+@keyframes slideUp { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: translateY(0); } }
+
+@media (max-width: 900px) {
+  #scaler-wrapper { height: auto; width: 100%; transform: none !important; margin: 0; position: static; }
+  .main-container { grid-template-columns: 1fr; height: auto; }
+  .panels-wrapper { height: auto; }
+  .scroll-content { max-height: 400px; }
+  body { overflow: auto; height: auto; }
+}
 </style>
 </head>
 <body>
-<div class="hd">
-  <h1>项目合规性评审系统</h1>
-  <p>Automated Report Review Agent</p>
-  <div class="badge">Intelligent Document Analysis</div>
+
+<canvas id="canvas-bg"></canvas>
+<div class="blob" style="top: 10%; right: 5%;"></div>
+<div class="blob" style="bottom: 10%; left: 5%;"></div>
+
+<div id="scaler-wrapper">
+<header>
+  <h1>项目合规智能评审系统</h1>
+  <p>Intelligent Compliance Analysis</p>
+</header>
+
+<div class="main-container">
+  <div class="sidebar">
+    <div class="glass-card">
+      <div class="title-tag">源文件上传</div>
+      <div class="upload-group">
+        <label class="upload-btn">
+          <input type="file" id="rf" accept=".xlsx,.xls" onchange="uf('rf','rn')">
+          <span class="icon">📋</span>
+          <span class="label">审查规则检查表</span>
+          <span class="filename" id="rn">未选择文件</span>
+        </label>
+        <label class="upload-btn">
+          <input type="file" id="df" accept=".pdf,.docx" onchange="uf('df','dn')">
+          <span class="icon">📄</span>
+          <span class="label">项目文档全文</span>
+          <span class="filename" id="dn">未选择文件</span>
+        </label>
+      </div>
+      <div style="font-size: 10px; color: var(--accent-gold); margin-top: 10px; text-align: center; opacity: 0.8;">
+        ⚠️ 目前只支持pdf和docx!! 文件分析之后会被自动删除!!
+      </div>
+    </div>
+
+    <div class="glass-card">
+      <div class="title-tag">核心配置</div>
+      <div style="margin-bottom: 12px;">
+        <label style="font-size: 10px; color: var(--text-dim); display: block; margin-bottom: 6px;">选择审查模型</label>
+        <select id="modelSel">
+          <option value="mimo">MIMO-V2.5 PRO</option>
+          <option value="kimi">KIMI-K2.6</option>
+          <option value="qwen3.6">QWEN 3.6 PLUS</option>
+        </select>
+      </div>
+      <div>
+        <label style="font-size: 10px; color: var(--text-dim); display: block; margin-bottom: 6px;">补充指令</label>
+        <textarea id="un" placeholder="如有特定的关注点或额外审查要求，请在此输入..."></textarea>
+      </div>
+    </div>
+
+    <button class="btn-primary" id="sb" onclick="go()">开始合规扫描</button>
+  </div>
+
+  <div class="content-area">
+    <div class="status-bar" id="steps">
+      <div class="step-dot" id="s1"><div class="circle"></div><div class="label">加载规则</div></div>
+      <div class="step-dot" id="s2"><div class="circle"></div><div class="label">解析文档</div></div>
+      <div class="step-dot" id="s3"><div class="circle"></div><div class="label">智能审查</div></div>
+      <div class="step-dot" id="s4"><div class="circle"></div><div class="label">生成报告</div></div>
+    </div>
+
+    <div class="panels-wrapper" id="panels">
+      <div class="panel-thinking" id="tp-panel">
+        <div class="panel-header">
+          <h3>思考逻辑流 (REASONING)</h3>
+          <div class="indicator"></div>
+        </div>
+        <div class="scroll-content" id="tb"></div>
+      </div>
+      <div class="panel-report" id="rp-panel">
+        <div class="panel-header">
+          <h3>合规评审报告 (REPORT)</h3>
+          <div class="indicator"></div>
+        </div>
+        <div class="scroll-content" id="rb"></div>
+      </div>
+    </div>
+  </div>
 </div>
-<div class="wrap">
-  <div class="card">
-    <div class="security-notice">
-      <span>🛡️</span> 隐私安全提示：您的文档仅在服务器内存中进行即时分析，不会保存到任何磁盘。分析完成后及离开页面时，内容将自动彻底销毁。
-    </div>
-    
-    <div class="ct">Upload Documents</div>
-    <div class="ur">
-      <div class="ub"><input type="file" id="rf" accept=".xlsx,.xls" onchange="uf('rf','rn')"><div class="ic">📋</div><div class="tt">审查规则 (Excel)</div><div class="ds">.xlsx / .xls格式</div><div class="fn" id="rn">未选择文件</div></div>
-      <div class="ub"><input type="file" id="df" accept=".pdf,.docx" onchange="uf('df','dn')"><div class="ic">📄</div><div class="tt">项目文档 (PDF/Word)</div><div class="ds">.pdf / .docx格式</div><div class="fn" id="dn">未选择文件</div></div>
-    </div>
-    
-    <div class="ct">Model Selection</div>
-    <select id="modelSel" style="margin-bottom:24px">
-      <option value="mimo">mimo-v2.5-pro </option>
-      <option value="kimi">kimi-k2.6</option>
-      <option value="qwen3.6">qwen3.6-plus</option>
-    </select>
-    
-    <div class="ct">Additional Instructions</div>
-    <textarea id="un" placeholder="可选填：对本次审查的补充说明或特别要求，例如“重点关注资质要求条款”..." style="height:90px;margin-bottom:24px;resize:vertical"></textarea>
-    
-    <button class="btn" id="sb" onclick="go()">🚀 开始智能审查</button>
-  </div>
-  
-  <div class="steps" id="steps">
-    <div class="st" id="s1"><div class="sn">1</div>解析规则</div><div class="sl" id="l1"></div>
-    <div class="st" id="s2"><div class="sn">2</div>提取文档</div><div class="sl" id="l2"></div>
-    <div class="st" id="s3"><div class="sn">3</div>智能审查</div><div class="sl" id="l3"></div>
-    <div class="st" id="s4"><div class="sn">4</div>生成报告</div>
-  </div>
-  
-  <div class="panels" id="panels">
-    <div class="pn card" id="tp" style="padding:20px;margin-bottom:0">
-      <div class="ph">🤔 推理过程 &amp; 系统日志</div>
-      <div class="pb" id="tb"></div>
-    </div>
-    <div class="pn card" id="rp" style="padding:20px;margin-bottom:0">
-      <div class="ph">📄 最终合规性审查报告</div>
-      <div class="pb" id="rb"></div>
-    </div>
-  </div>
 </div>
+
 <script>
-window.addEventListener("beforeunload", function (e) {
-  var msg = "离开页面后，上传的内容及分析结果将自动销毁，确定离开吗？";
-  e.returnValue = msg;
-  return msg;
+const canvas = document.getElementById('canvas-bg');
+const ctx = canvas.getContext('2d');
+let particles = [];
+function initParticles() {
+  canvas.width = window.innerWidth;
+  canvas.height = window.innerHeight;
+  particles = [];
+  for(let i=0; i<60; i++) {
+    particles.push({
+      x: Math.random() * canvas.width,
+      y: Math.random() * canvas.height,
+      vx: (Math.random() - 0.5) * 0.25,
+      vy: (Math.random() - 0.5) * 0.25,
+      size: Math.random() * 1.5 + 1
+    });
+  }
+}
+function animate() {
+  ctx.clearRect(0, 0, canvas.width, canvas.height);
+  ctx.fillStyle = 'rgba(0, 229, 255, 0.3)';
+  particles.forEach(p => {
+    p.x += p.vx; p.y += p.vy;
+    if(p.x < 0 || p.x > canvas.width) p.vx *= -1;
+    if(p.y < 0 || p.y > canvas.height) p.vy *= -1;
+    ctx.beginPath(); ctx.arc(p.x, p.y, p.size, 0, Math.PI * 2); ctx.fill();
+  });
+  requestAnimationFrame(animate);
+}
+
+function autoScale() {
+  if(window.innerWidth < 900) return;
+  const wrapper = document.getElementById('scaler-wrapper');
+  const designWidth = 1920;
+  const designHeight = 1080;
+  const ratioX = window.innerWidth / designWidth;
+  const ratioY = window.innerHeight / designHeight;
+  const ratio = Math.min(ratioX, ratioY);
+  
+  wrapper.style.position = 'absolute';
+  wrapper.style.left = '50%';
+  wrapper.style.top = '50%';
+  wrapper.style.transform = `translate(-50%, -50%) scale(${ratio})`;
+}
+
+window.addEventListener('resize', () => {
+  initParticles();
+  autoScale();
 });
-function uf(a,b){var f=document.getElementById(a).files[0];var el=document.getElementById(b);el.innerText=f?f.name:'未选择文件';if(f)el.style.background='rgba(74,144,226,0.15)';else el.style.background='rgba(74,144,226,0.05)';}
-function ss(n){for(var i=1;i<=4;i++){var e=document.getElementById('s'+i);e.classList.toggle('on',i<=n);if(i<4)document.getElementById('l'+i).style.background=i<n?'#eebb55':'#e2e8f0';}}
-function tb(f){return new Promise(function(ok,er){var r=new FileReader();r.onload=function(){ok(r.result.split(',')[1]);};r.onerror=er;r.readAsDataURL(f);});}
+window.addEventListener("beforeunload", function (e) {
+  var msg = "页面关闭后，上传的文件内容将立即销毁。";
+  e.returnValue = msg; return msg;
+});
+
+initParticles(); 
+animate();
+autoScale();
+
+function uf(a,b){
+  var f=document.getElementById(a).files[0];
+  var el=document.getElementById(b);
+  el.innerText=f?f.name:'未选择文件';
+}
+
+function ss(n){
+  for(var i=1;i<=4;i++){
+    var e=document.getElementById('s'+i);
+    if(e) e.classList.toggle('active',i<=n);
+  }
+}
+
+function tb_file(f){
+  return new Promise(function(ok,er){
+    var r=new FileReader();
+    r.onload=function(){ok(r.result.split(',')[1]);};
+    r.onerror=er; r.readAsDataURL(f);
+  });
+}
+
 function rc(c){
-  if(typeof c==='string')return marked.parse(c);
+  if(typeof c==='string') return marked.parse(c);
   if(Array.isArray(c)){
     var h='';
-    for(var i=0;i<c.length;i++){
+    for(var i=0; i<c.length; i++){
       var it=c[i];
-      if(it.type==='text'&&it.text)h+=marked.parse(it.text);
-      else if(it.type==='thinking'||it.type==='thought'){var t=it.thinking||it.thought||it.text||'';h+='<div style="color:#d4a347;font-style:italic;border-left:3px solid #eebb55;padding-left:12px;margin:8px 0;background:rgba(238,187,85,0.05);padding:10px;border-radius:0 8px 8px 0">'+marked.parse(t)+'</div>';}
+      if(it.type==='text'&&it.text) h+=marked.parse(it.text);
+      else if(it.type==='thinking'||it.type==='thought'){
+        var t=it.thinking||it.thought||it.text||'';
+        h+='<div class="thinking-box">'+marked.parse(t)+'</div>';
+      }
     }
-    return h||marked.parse(JSON.stringify(c));
+    return h;
   }
   return marked.parse(String(c));
 }
+
 function goc(container,blocks,name){
   if(!blocks[name]){
-    var w=document.createElement('div');w.className='mb';
-    var t=document.createElement('div');t.className='mn';t.innerText=name;
-    var b=document.createElement('div');b.className='mc';
-    w.appendChild(t);w.appendChild(b);container.appendChild(w);
+    var w=document.createElement('div'); w.className='msg-block';
+    var t=document.createElement('div'); t.className='msg-name'; t.innerText=name;
+    var b=document.createElement('div'); b.className='markdown-body';
+    w.appendChild(t); w.appendChild(b); container.appendChild(w);
     blocks[name]=b;
   }
   return blocks[name];
 }
+
 function handleMsg(msg,tBlk,rBlk){
   var name=msg.name||'';
   var c=msg.content;
   if(!name)return;
   var isReport=(name==='审查智能体');
+  var isSystem=(name==='系统');
   var cont=document.getElementById(isReport?'rb':'tb');
-  var blk=isReport?rBlk:tBlk;
-  var el=goc(cont,blk,name);
-  el.innerHTML=rc(c);
-  var scrollTarget = cont.parentElement;
-  if (scrollTarget.scrollHeight - scrollTarget.scrollTop - scrollTarget.clientHeight < 100) {
-      cont.scrollTop=cont.scrollHeight;
+  
+  // 对于系统消息或推理流，如果是步骤更新，我们保留历史
+  var el;
+  if (isSystem) {
+    // 系统消息每次都创建新块，不覆盖
+    var w=document.createElement('div'); w.className='msg-block';
+    var t=document.createElement('div'); t.className='msg-name'; t.innerText=name;
+    var b=document.createElement('div'); b.className='markdown-body';
+    w.appendChild(t); w.appendChild(b); cont.appendChild(w);
+    el = b;
+  } else {
+    var blk=isReport?rBlk:tBlk;
+    el=goc(cont,blk,name);
   }
+  
+  el.innerHTML=rc(c);
+  
+  if (isReport) document.getElementById('rp-panel').classList.add('panel-active');
+  else document.getElementById('tp-panel').classList.add('panel-active');
+
+  cont.scrollTop=cont.scrollHeight;
   if(typeof c==='string'){
-    if(c.indexOf('提取文档')>=0||c.indexOf('提取项目')>=0)ss(2);
-    else if(c.indexOf('智能审查')>=0)ss(3);
-    else if(c.indexOf('完毕')>=0)ss(4);
+    if(c.indexOf('解析规则')>=0) ss(1);
+    else if(c.indexOf('提取项目')>=0) ss(2);
+    else if(c.indexOf('智能审查')>=0) ss(3);
+    else if(c.indexOf('完毕')>=0) ss(4);
   }
 }
+
 async function go(){
   var rf=document.getElementById('rf').files[0];
   var df=document.getElementById('df').files[0];
-  if(!rf||!df){alert('请先上传规则和项目文档');return;}
+  if(!rf||!df){alert('错误：请先上传审查规则和项目文档。');return;}
+  
   var btn=document.getElementById('sb');
-  btn.disabled=true;btn.innerText='审查中 (Processing)...';
-  document.getElementById('steps').style.display='flex';
-  document.getElementById('panels').style.display='flex';
+  btn.disabled=true; btn.innerText='扫描中...';
+  
   document.getElementById('tb').innerHTML='';
   document.getElementById('rb').innerHTML='';
   ss(1);
+  
   try{
-    var rb=await tb(rf),db=await tb(df);
+    var rb_data=await tb_file(rf), db_data=await tb_file(df);
     var md=document.getElementById('modelSel').value;
     var un=document.getElementById('un').value||'';
-    var resp=await fetch('./process',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({rules_base64:rb,rules_filename:rf.name,doc_base64:db,doc_filename:df.name,user_note:un,model_choice:md})});
+    
+    var resp=await fetch('./process',{
+      method:'POST',
+      headers:{'Content-Type':'application/json'},
+      body:JSON.stringify({rules_base64:rb_data,rules_filename:rf.name,doc_base64:db_data,doc_filename:df.name,user_note:un,model_choice:md})
+    });
+    
     var reader=resp.body.getReader();
     var dec=new TextDecoder();
     var buf='',tBlk={},rBlk={};
+    
     while(true){
       var res=await reader.read();
       if(res.done){ss(4);break;}
@@ -391,8 +745,8 @@ async function go(){
         }catch(e){}
       }
     }
-  }catch(e){alert('审查出错: '+e.message);}
-  finally{btn.disabled=false;btn.innerText='重新审查';}
+  }catch(e){alert('扫描失败: '+e.message);}
+  finally{btn.disabled=false; btn.innerText='重新扫描';}
 }
 </script>
 </body>
