@@ -2,3 +2,4 @@ agentscope-runtime
 openpyxl
 pdfplumber
 python-docx
+sharepoint-to-text

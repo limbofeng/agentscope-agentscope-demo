@@ -1,6 +1,10 @@
 #!/usr/bin/env python
 import base64
 import io
+import os
+import subprocess
+import tempfile
+import sharepoint2text
 from contextlib import asynccontextmanager
 from logging import getLogger
 from trace import init_trace,attach_trace
@@ -60,7 +64,19 @@ def extract_document_text(b64_data, filename):
             doc = DocxDocument(io.BytesIO(decoded))
             return '\n'.join(p.text for p in doc.paragraphs if p.text.strip())
         elif fn.endswith('.doc'):
-            return '提取文档失败: 仅支持.docx，请另存为.docx后重试'
+            with tempfile.NamedTemporaryFile(suffix='.doc', delete=False) as tmp:
+                tmp.write(decoded)
+                tmp_path = tmp.name
+            try:
+                results = list(sharepoint2text.read_file(tmp_path))
+                if results:
+                    return results[0].get_full_text()
+                return "提取文档失败: 未能在 .doc 中找到文本内容"
+            except Exception as e:
+                return f'提取文档失败 (sharepoint-to-text): {e}'
+            finally:
+                if os.path.exists(tmp_path):
+                    os.remove(tmp_path)
         else:
             return '提取文档失败: 不支持的文档格式'
     except Exception as e:
@@ -73,11 +89,12 @@ SYSTEM_PROMPT = """你是一个专业的项目报告合规性审查智能体。
 - 中文回答，回答必须言简意赅。
 - 必须严谨，绝对不能有任何编造的部分！！严格按照规则审查。
 - 逐项审查：按照检查表中的每一条规则，在项目文档中查找对应内容。
-- 找到对应内容：对比判断是否合规，给出合规/不合规的明确结论。
-- 未找到对应内容：标注"未查到相关内容"或"查不到"，直接跳过。能查到就查到，查不到就说查不到。
+- 找到对应内容：对比判断是否合规，给出合规/不合规的明确结论，最终用表格输出。
+- 未找到对应内容：标注"未查到相关内容"或"查不到"，直接跳过。
 - 禁止使用任何工具或知识库，所有判断必须基于用户上传的文档内容。其他智能体的意见只是参考（重点核对不合规项），必须亲自在文档中核实。
 - 输出Markdown格式的合规性检查报告，重点突出【不合规】项目，并先总结说明，再分开阐述。
 - 【样式要求】请务必将所有的且仅仅是【不合规】的项，使用 <span class="uncompliant-red">...</span> 标签包裹，确保在报告中呈现红色醒目标注。
+- 【样式要求】除了【不合规】的项，其他的都不能用标签包裹，不做任何处理。
 - 请一次性完成所有检查项的审查。"""
 
 SUMMARY_PROMPT = """你是一个专业的报告精炼专家。
@@ -584,14 +601,14 @@ textarea { flex: 1; margin-top: 10px; resize: none; min-height: 250px; line-heig
           <span class="filename" id="rn">未选择文件</span>
         </label>
         <label class="upload-btn">
-          <input type="file" id="df" accept=".pdf,.docx" onchange="uf('df','dn','ds')">
+          <input type="file" id="df" accept=".pdf,.docx,.doc" onchange="uf('df','dn','ds')">
           <span class="icon">📄 <small id="ds" style="font-size: 10px; margin-left: 5px;"></small></span>
           <span class="label">项目文档全文</span>
           <span class="filename" id="dn">未选择文件</span>
         </label>
       </div>
       <div style="font-size: 10px; color: var(--accent-gold); margin-top: 10px; text-align: center; opacity: 0.8;">
-        ⚠️ 目前只支持pdf和docx!! 文件分析之后会被自动删除!!
+        ⚠️ 支持小于50MB的pdf、docx和doc文件!! 文件仅在内存中处理，处理完即销毁!!
       </div>
     </div>
 
